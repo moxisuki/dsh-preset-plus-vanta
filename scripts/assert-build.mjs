@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// dsh-preset-plus 是手写纯 JS，无编译步骤。"build" 因此在发布/安装前校验
+// dsh-preset-plus-vanta 是手写纯 JS，无编译步骤。"build" 因此在发布/安装前校验
 // 发布入口确实存在且可解析——防止误发布一个缺文件的包。
 // 注意：包内不再放 prepare/postinstall（pnpm 10 默认拦截依赖构建脚本，会破坏
 // 一行安装）。本脚本在 CI 里作为显式步骤运行。
@@ -17,8 +17,7 @@ const REQUIRED = [
   'client.js',
   'cordis.patch.yml',
   'presets/jailbreak.json',
-  'preset/preset.yml',
-  'preset/agent.cordis.yml',
+  'presets/vanta.json',
 ];
 
 let failed = false;
@@ -32,7 +31,7 @@ for (const rel of REQUIRED) {
 }
 
 // host 入口单独做语法解析
-for (const rel of ['lib/index.js', 'lib/core.js', 'client.js', 'presets/jailbreak.json']) {
+for (const rel of ['lib/index.js', 'lib/core.js', 'client.js', 'presets/jailbreak.json', 'presets/vanta.json']) {
   const abs = join(root, rel);
   try {
     readFileSync(abs, 'utf8'); // 能读即可；完整语法由 `lint` 的 node --check 做
@@ -47,22 +46,24 @@ if (failed) {
   process.exit(1);
 }
 
-// PresetPlus 的组合必须承载至少一个工具行（否则以该模式启动的会话没有任何
-// 模型可用的工具）。读取文本做宽松的启发式检查：不是空数组 `[]`，且出现至少
-// 一个脚本行（以 `- id:` 开头）。完整语义校验由 CI 的 mount-validate 兜底。
+// vanta 的 agent preset 在 cordis.patch.yml 里声明，插件列表内联在声明行的
+// `plugins:` 之下，且必须承载至少一个插件行（否则以该模式启动的会话没有任何
+// 模型可用的工具）。读文本做宽松的启发式检查：声明行存在，且其之后至少出现
+// 一个 `- id:` 行。完整语义校验由 CI 的 mount-validate 兜底。
 try {
-  const composition = readFileSync(join(root, 'preset/agent.cordis.yml'), 'utf8');
-  const rowCount = (composition.match(/^\s*- id:/gm) || []).length;
-  if (rowCount === 0) {
-    console.error('[assert-build] preset/agent.cordis.yml 是空组合（无任何 - id: 行）；请先补齐工具行。');
+  const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
+  const parts = patch.split(/^[ \t]*- id: preset-vanta[ \t]*$/m);
+  if (parts.length < 2) {
+    console.error('[assert-build] cordis.patch.yml 缺少 agent preset 声明行 `- id: preset-vanta`。');
     process.exit(1);
   }
-  if (/^\s*\[\s*\]\s*$/m.test(composition)) {
-    console.error('[assert-build] preset/agent.cordis.yml 是空数组 `[]`；请先用完整的工具组合填充。');
+  const pluginRows = (parts[1].match(/^\s*- id:/gm) || []).length;
+  if (pluginRows === 0) {
+    console.error('[assert-build] preset-vanta 的 plugins 列表为空（声明之后没有任何 `- id:` 行）；请先补齐插件行。');
     process.exit(1);
   }
 } catch (e) {
-  console.error(`[assert-build] 读不了 preset/agent.cordis.yml: ${e.message}`);
+  console.error(`[assert-build] 读不了 cordis.patch.yml: ${e.message}`);
   process.exit(1);
 }
 

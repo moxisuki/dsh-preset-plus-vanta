@@ -1,7 +1,7 @@
 {
-  "name": "@rain-kl/dsh-preset-plus",
-  "version": "0.1.5",
-  "description": "DeepSeek Harness universal preset enhancement plugin: an editable preset editor (system/user/assistant entries + camouflage model output prepopulation)",
+  "name": "@moxisuki/dsh-preset-plus-vanta",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness preset enhancement (fork of @rain-kl/dsh-preset-plus): editable presets (system/user/assistant entries + prefill seeds) applied to the `vanta` agent mode. Registers its agent preset declaratively, so no $DSH_HOME/.agent-presets directory is used.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -12,7 +12,6 @@
   "files": [
     "lib",
     "presets",
-    "preset",
     "scripts",
     "docs",
     "client.js",
@@ -31,19 +30,18 @@
     "dsh-plugin",
     "deepseek-harness",
     "preset",
-    "jailbreak",
     "prefill",
     "agent"
   ],
-  "author": "Rain-kl",
+  "author": "moxisuki",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Rain-kl/dsh-preset-plus.git"
+    "url": "git+https://github.com/moxisuki/dsh-preset-plus-vanta.git"
   },
   "bugs": {
-    "url": "https://github.com/Rain-kl/dsh-preset-plus/issues"
+    "url": "https://github.com/moxisuki/dsh-preset-plus-vanta/issues"
   },
-  "homepage": "https://github.com/Rain-kl/dsh-preset-plus#readme",
+  "homepage": "https://github.com/moxisuki/dsh-preset-plus-vanta#readme",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

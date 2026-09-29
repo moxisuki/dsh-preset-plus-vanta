@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// dsh-preset-plus 的一键发版脚本（照搬 modlens/release.mjs 的守卫顺序，但不 publish）。
+// dsh-preset-plus-vanta 的一键发版脚本（照搬 modlens/release.mjs 的守卫顺序，但不 publish）。
 //
 //   pnpm release 0.1.1       显式版本
 //   pnpm release patch       从当前版本 bump

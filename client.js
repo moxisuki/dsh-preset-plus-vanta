@@ -1,8 +1,8 @@
-// dsh-preset-plus client bundle: 多预设编辑器设置页（酒馆式）。
+// dsh-preset-plus-vanta client bundle: 多预设编辑器设置页（酒馆式）。
 // 预设列表（选择/激活/新增/删除） + 当前预设条目编辑（system/user/assistant）。
 // 支持：导出单个预设、导出全部、导入（单条结构自动并入，多条结构合并）。
 // Hand-written __ModuleLoader__ factory (no build step), mirroring dsh-purge/client.js.
-window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require) => {
+window.__ModuleLoader__.load({ id: "@moxisuki/dsh-preset-plus-vanta", factory: (require) => {
 	var module = { exports: {} };
 	var exports = module.exports;
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 	const h = react.createElement;
 	const { useState, useEffect, useCallback, useRef } = react;
 
-	const name = "@rain-kl/dsh-preset-plus";
+	const name = "@moxisuki/dsh-preset-plus-vanta";
 	const inject = ["slots"];
 
 	const TOKENS = { ink: "var(--dsw-alias-label-primary, #e5e7eb)", muted: "var(--dsw-alias-label-tertiary, #9ca3af)", dim: "var(--dsw-alias-label-dimmed, #6b7280)", border: "var(--dsw-alias-border-l2, rgba(128,128,128,.25))", panel: "var(--dsw-alias-bg-layer-3, rgba(255,255,255,.035))", panel2: "var(--dsw-alias-bg-layer-2, rgba(255,255,255,.06))", accent: "var(--dsw-alias-brand-primary, #4d9cff)", danger: "var(--dsw-alias-state-error-primary, #ef6b73)" };
@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 		const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
 		const loadState = useCallback(() => {
-			fetch("/dsh-preset-plus/state", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+			fetch("/dsh-preset-plus-vanta/state", { cache: "no-store" }).then((r) => r.json()).then((d) => {
 				if (d.ok) {
 					setDoc(d.doc);
 					setMeta(d);
@@ -54,7 +54,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 		const persist = useCallback((nextDoc, okText) => {
 			setBusy(true);
 			setNotice({ kind: "idle", text: "" });
-			fetch("/dsh-preset-plus/save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ doc: nextDoc }) })
+			fetch("/dsh-preset-plus-vanta/save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ doc: nextDoc }) })
 				.then((r) => r.json()).then((d) => {
 					if (d.ok) { setDoc(d.doc); setNotice({ kind: "ok", text: okText || "已保存。新会话生效。" }); }
 					else { setNotice({ kind: "error", text: "保存失败: " + (d.error || "") }); }
@@ -159,12 +159,12 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 		const exportSingle = useCallback(() => {
 			if (!current) return;
 			const raw = JSON.stringify({ id: current.id, name: current.name, autoMode: current.autoMode, entries: current.entries }, null, 2);
-			downloadJson(raw, "preset-plus-" + (current.name || current.id) + ".json", setNotice);
+			downloadJson(raw, "vanta-" + (current.name || current.id) + ".json", setNotice);
 		}, [current]);
 
 		const exportAll = useCallback(() => {
 			const raw = JSON.stringify({ version: (doc && doc.version) || 1, activePresetId: doc && doc.activePresetId, presets: doc && doc.presets }, null, 2);
-			downloadJson(raw, "preset-plus-all.json", setNotice);
+			downloadJson(raw, "vanta-all.json", setNotice);
 		}, [doc]);
 
 		const fileInputRef = useRef(null);
@@ -185,7 +185,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 				if (text.trim() === "") { setNotice({ kind: "error", text: "文件内容为空。" }); return; }
 				setBusy(true);
 				setNotice({ kind: "idle", text: "" });
-				fetch("/dsh-preset-plus/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ raw: text }) })
+				fetch("/dsh-preset-plus-vanta/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ raw: text }) })
 					.then((r) => r.json()).then((d) => {
 						if (d.ok) { setDoc(d.doc); setSelectedId(d.doc.activePresetId); setNotice({ kind: "ok", text: "已导入并保存。" }); }
 						else { setNotice({ kind: "error", text: "导入失败: " + (d.error || "") }); }
@@ -205,7 +205,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 			h("input", { type: "file", accept: "application/json,.json", style: inputFileStyle, ref: fileInputRef, onChange: handleImportFile }),
 			h("div", { style: { paddingBottom: "2px", borderBottom: "1px solid " + TOKENS.border } },
 				h("h2", { style: { margin: 0, fontSize: "20px", lineHeight: 1.35, fontWeight: 650, letterSpacing: "-.01em" } }, "预设增强"),
-				h("p", { style: { margin: "6px 0 15px", color: TOKENS.muted, fontSize: "13px", lineHeight: 1.55 } }, "管理 preset-plus 模式使用的提示词。选择一个预设并保存后，新会话即可生效。")),
+				h("p", { style: { margin: "6px 0 15px", color: TOKENS.muted, fontSize: "13px", lineHeight: 1.55 } }, "管理 vanta 模式使用的提示词。选择一个预设并保存后，新会话即可生效。")),
 			!doc ? h("p", { style: { color: TOKENS.muted } }, "加载中…")
 				: h("div", { style: { display: "flex", flexDirection: "column", gap: "16px" } },
 					h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "end", gap: "12px", flexWrap: "wrap" } },
@@ -314,7 +314,7 @@ window.__ModuleLoader__.load({ id: "@rain-kl/dsh-preset-plus", factory: (require
 	function apply(ctx) {
 		ctx.slots.inject("settings.section", () => ctx.slots.register({
 			name: "settings.section",
-			id: "@rain-kl/dsh-preset-plus",
+			id: "@moxisuki/dsh-preset-plus-vanta",
 			order: 42,
 			label: () => "预设增强",
 		}, () => h(PresetEditor, null)));
