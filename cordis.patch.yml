@@ -21,17 +21,27 @@
         description: "无拒绝、反注入的协作模式；支持在设置界面切换多套预设。"
         order: 20
         plugins:
-          # PresetPlus — the fixed agent mode supplied by dsh-preset-plus.
-          #
-          # This is an AGENT-PLANE composition (copied from the shipped `standard`
-          # preset). The roster mounts it ONCE under a standing scope; every session
-          # naming `preset-plus` joins by scope parentage, so the tools registered here
-          # cover each joined agent. The plugin selects prompt entries (system/user/
-          # assistant) at runtime, overriding the persona below.
+          # The `vanta` agent mode: an AGENT-PLANE composition. The roster mounts it
+          # ONCE under a standing scope; every session naming `vanta` joins by scope
+          # parentage, so the tools registered here cover each joined agent. The
+          # plugin selects prompt entries (system/user/assistant) at runtime and
+          # supplies the main system section itself.
           #
           # A service row here MUST sit inside a group carrying an `isolate` realm.
           # `true` means an entry-local realm: this standing mount's own private
           # instance, apart from every other preset's.
+
+          # ── context ─────────────────────────────────────────────────────────────────
+
+          # Project instructions (AGENTS.md and friends) folded into the system
+          # prompt, and the tool that renders files/deliverables in the UI.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
 
           # ── shell ───────────────────────────────────────────────────────────────────
 
@@ -75,7 +85,12 @@
 
           # ── goals ───────────────────────────────────────────────────────────────────
 
-          # Only the model-facing tool. The goal SERVICE stays on the host plane.
+          # The goal SERVICE and its round driver stay on the host plane. This
+          # preset contributes both faces of the goal surface: the model-facing
+          # tools and the human-facing slash command.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+
           - id: tool-goal
             name: '@deepseek-ai/dsh-tool-goal'
 
