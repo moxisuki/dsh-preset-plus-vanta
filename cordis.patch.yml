@@ -192,6 +192,15 @@
                 config:
                   provider: spawn
 
+              # The engine row the shipped `standard` preset carries in this same
+              # isolated realm. With no provider here, `tool-workflow` and
+              # `tool-ralph` wait on `workflowEngine` forever and the registry
+              # reports the whole preset as failed to load.
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+
               - id: tool-workflow
                 name: '@deepseek-ai/dsh-tool-workflow'
 
