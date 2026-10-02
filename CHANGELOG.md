@@ -7,6 +7,23 @@
 
 ### 修复
 - system 段改用 `systemPrompt.section()` 注册（text 为函数，每次组装时从预设动态读取），与 billion 机制一致。system 在组装阶段（`system-prompt/assemble`）即加入，轨迹可见。`llm/stream` handler 不再碰 `options.system`，仅负责前置 fake 消息。
+- **system 段此前完全绕过作用域门**：`systemPrompt.section()` 的 text 回调不查 `scopedPresets` / `autoMode`，作用域判定只作用于 `llm/stream` 的 fake 消息层。实际影响是主提示词被无条件注入到宿主里每一个 agent 模式——当预设只启用 system 段时（user/assistant 关闭），`scopedPresets` 对唯一生效的那一层形同虚设。作用域判定已移入 `system-prompt/assemble`（唯一能拿到 `context.agent` 的位置），未命中时按段名摘除本插件的段。新增 `strictScope` 配置（默认 `true`），置 `false` 可退回旧的全局注入行为。
+- `enabledForAgent` 未对 `agentPresets` 做空值保护，且该服务不在 `inject` 声明中，加载顺序不保证时就绪——`/vanta prefill` 会抛 TypeError。已改为 fail-closed（未就绪判为不命中）并补入 `inject` 声明。
+- `verbose` 配置项此前无效：`llm/stream` 的注入日志无条件输出。已挂到该开关下，日志附带 preset、model 与命中的路由。
+- `saveMultiPreset` 的注释声称原子写入，实现是裸 `writeFile`，写到一半中断会丢失全部预设。改为临时文件 + `rename` 原子替换；覆盖前把**当前可解析的**主文件轮转为 `.bak`（主文件已损坏时不轮转，否则会用坏文件盖掉唯一的好备份）；读取时若主文件解析失败则回落 `.bak` 并在诊断中标注降级，而非静默重置。
+- 首次初始化原先在读路径上异步写盘，web 与 desktop 双宿主首启会交错。落盘统一由 `saveMultiPreset` 串行负责（单飞链），读路径不再写盘。
+- 导入/导出此前丢弃 `postPrompt` 与 `modelRoutes` 字段，导出后重新导入会静默丢失这些数据。
+
+### 新增
+- **按模型路由**（schema v2）：`modelRoutes: [{ pattern, presetId }]`，按声明顺序首个匹配者胜出，pattern 为大小写不敏感 glob（`*` / `?`），未命中回落 `activePresetId`。命中时改用对应预设的 user / assistant 条目。纯增量字段，v1 文档归一化后自动获得 `modelRoutes: []`，无需迁移脚本。目标预设缺失的路由会保留（匹配时跳过），事后导入该预设即刻生效。
+- **尾部锚定段**：预设新增可选 `postPrompt` 字段，注册为 `order: 5100` 的独立 section（主提示词为 `order: 100`）。模型对 system 末尾的指令服从度显著高于开头。留空则不注册该段。
+- 诊断与快照：`/vanta status` 新增 DSH_HOME、存储/备份文件存在性、降级状态、`strictScope`、模型路由与命中情况；新增 `/vanta backup` / `restore` 命令、`/dsh-preset-plus-vanta/backup` / `snapshots` / `restore` 路由，以及带时间戳的快照目录。
+- 设置页新增三张卡片：尾部锚定段编辑区、按模型路由编辑区、快照备份/还原；存储降级状态会在页面上直接告警。
+- 新增 `test/inject.test.mjs` 回归测试（32 项），覆盖作用域门命中/未命中、`agentPresets` 未就绪/取不到 Agent/抛异常三种 fail-closed 路径、`strictScope` 退路、`autoMode` 双向、路由命中/回落/顺序优先、verbose 双向。`pnpm test` 运行。
+
+### 说明
+- `modelRoutes` 只作用于 user / assistant 条目。system 段与尾部锚定段在组装阶段拿不到 model 信息，始终取当前激活预设；`/vanta status` 会明示这一点。
+- 存储 schema 由 1 升至 2。旧文档向前兼容，无需迁移脚本。
 
 ## 0.1.5 - 2026-08-27
 ### 修复

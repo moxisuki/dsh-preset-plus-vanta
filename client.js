@@ -27,6 +27,107 @@ window.__ModuleLoader__.load({ id: "@moxisuki/dsh-preset-plus-vanta", factory: (
 
 	const ROLES = ["system", "user", "assistant"];
 
+	// ── 三个附加卡片 ──────────────────────────────────────────────────────
+	// 提成独立组件而不是塞进 render 的 JSX 里：嵌套层数浅、可读，
+	// 也不会把主 render 撑成一坨。
+
+	/** 尾部锚定段：注册在 system 末尾（order 5100），权重高于开头的主提示词。 */
+	function PostPromptCard(props) {
+		const { current, patchPreset } = props;
+		return h("div", { style: Object.assign({}, CARD_STYLE, { marginTop: "4px" }) },
+			h("div", { style: ROW_STYLE },
+				h("span", { style: { fontSize: "13px", fontWeight: 600 } }, "尾部锚定段"),
+				h("span", { style: { fontSize: "11px", color: TOKENS.dim } }, "system 末尾 · order 5100"),
+				current.postPrompt
+					? h("span", { style: { fontSize: "11px", color: TOKENS.muted } }, current.postPrompt.length + " 字")
+					: h("span", { style: { fontSize: "11px", color: TOKENS.dim } }, "未启用")),
+			h("textarea", {
+				style: Object.assign({}, TEXTAREA_STYLE, { minHeight: "88px" }),
+				value: current.postPrompt || "",
+				onChange: (e) => patchPreset({ postPrompt: e.target.value }),
+				spellCheck: false,
+				placeholder: "留空则不注册尾部段。它出现在整个 system 的末尾，模型对这里的服从度最高 —— 放最简短的强指令。",
+			}),
+		);
+	}
+
+	/** 按模型路由：命中的模型改用对应预设的 user / assistant 条目。 */
+	function ModelRoutesCard(props) {
+		const { doc, addRoute, patchRoute, removeRoute, persist, busy } = props;
+		const routes = (doc && doc.modelRoutes) || [];
+		const presetIds = doc ? Object.keys(doc.presets) : [];
+		return h("div", { style: Object.assign({}, CARD_STYLE, { marginTop: "2px" }) },
+			h("div", { style: ROW_STYLE },
+				h("span", { style: { fontSize: "13px", fontWeight: 600 } }, "按模型路由"),
+				h("span", { style: { fontSize: "11px", color: TOKENS.dim } }, "首个匹配者胜出 · * 与 ? 为通配"),
+				h("div", { style: Object.assign({}, ROW_STYLE, { marginLeft: "auto" }) },
+					h("button", { style: BTN_GHOST, onClick: addRoute }, "+ 新增路由"))),
+			h("p", { style: { margin: 0, fontSize: "11px", color: TOKENS.muted, lineHeight: 1.5 } },
+				"命中的模型改用对应预设的 user / assistant 条目。system 与尾部段拿不到模型信息，始终取当前激活预设。"),
+			routes.length === 0
+				? h("div", { style: { fontSize: "12px", color: TOKENS.dim } }, "（无路由，全部走激活预设）")
+				: h("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+					routes.map(function (r, i) {
+						return h("div", { key: i, style: ROW_STYLE },
+							h("span", { style: { fontSize: "11px", color: TOKENS.dim, minWidth: "38px" } }, "模型"),
+							h("input", {
+								style: Object.assign({}, INPUT_STYLE, { maxWidth: "180px" }),
+								value: r.pattern,
+								spellCheck: false,
+								placeholder: "gpt-* / deepseek-*",
+								onChange: (e) => patchRoute(i, { pattern: e.target.value }),
+							}),
+							h("span", { style: { fontSize: "11px", color: TOKENS.dim } }, "→"),
+							h("select", {
+								style: SELECT_STYLE,
+								value: r.presetId,
+								onChange: (e) => patchRoute(i, { presetId: e.target.value }),
+							}, presetIds.map(function (id) {
+								const p = doc.presets[id];
+								const label = p.name && p.name !== id ? id + "（" + p.name + "）" : id;
+								return h("option", { key: id, value: id }, label);
+							})),
+							h("button", {
+								style: Object.assign({}, BTN_GHOST, { color: TOKENS.danger, borderColor: "rgba(239,107,115,.35)", padding: "4px 9px", fontSize: "11px" }),
+								onClick: () => removeRoute(i),
+							}, "删除"));
+					})),
+			h("div", { style: ROW_STYLE },
+				h("button", {
+					style: Object.assign({ opacity: busy ? 0.6 : 1 }, BTN("var(--accent, #2f81f7)")),
+					disabled: busy,
+					onClick: () => persist(doc, "已保存。新会话生效。"),
+				}, "保存路由")),
+		);
+	}
+
+	/** 快照：手动打点 + 从历史快照还原。每次写入前的自动 .bak 由宿主侧负责。 */
+	function SnapshotsCard(props) {
+		const { snapshots, makeBackup, refreshSnapshots, restoreFrom, busy, meta } = props;
+		const degraded = meta && meta.runtime ? meta.runtime.degraded : null;
+		return h("div", { style: Object.assign({}, CARD_STYLE, { marginTop: "2px" }) },
+			h("div", { style: ROW_STYLE },
+				h("span", { style: { fontSize: "13px", fontWeight: 600 } }, "快照"),
+				h("span", { style: { fontSize: "11px", color: TOKENS.dim } },
+					"每次写入前另存 " + (meta && meta.backupPath ? meta.backupPath.replace(/^.*[\\/]/, "") : "vanta-presets.json.bak")),
+				h("div", { style: Object.assign({}, ROW_STYLE, { marginLeft: "auto" }) },
+					h("button", { style: Object.assign({}, BTN_GHOST, { opacity: busy ? 0.6 : 1 }), disabled: busy, onClick: makeBackup }, "立即备份"),
+					h("button", { style: BTN_GHOST, onClick: refreshSnapshots }, "刷新"))),
+			degraded
+				? h("div", { style: { fontSize: "12px", color: "#e5a50a" } }, "⚠ " + degraded)
+				: null,
+			snapshots.length === 0
+				? h("div", { style: { fontSize: "12px", color: TOKENS.dim } }, "（暂无快照）")
+				: h("div", { style: { display: "flex", flexDirection: "column", gap: "6px", maxHeight: "190px", overflowY: "auto" } },
+					snapshots.slice(0, 20).map(function (s) {
+						const when = String(s.mtime).replace("T", " ").split(".")[0];
+						return h("div", { key: s.id, style: ROW_STYLE },
+							h("span", { style: { fontSize: "11px", color: TOKENS.muted, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, when + "  (" + s.size + " B)"),
+							h("button", { style: Object.assign({}, BTN_GHOST, { padding: "4px 9px", fontSize: "11px" }), disabled: busy, onClick: () => restoreFrom(s.id) }, "还原"));
+					})),
+		);
+	}
+
 	function PresetEditor() {
 		const [doc, setDoc] = useState(null);
 		const [meta, setMeta] = useState(null);
@@ -289,6 +390,10 @@ window.__ModuleLoader__.load({ id: "@moxisuki/dsh-preset-plus-vanta", factory: (
 								);
 							}),
 							h("button", { style: BTN_GHOST, onClick: addEntry }, "+ 新增条目"),
+
+						h(PostPromptCard, { current, patchPreset }),
+						h(ModelRoutesCard, { doc, addRoute, patchRoute, removeRoute, persist, busy }),
+						h(SnapshotsCard, { snapshots, makeBackup, refreshSnapshots, restoreFrom, busy, meta }),
 						),
 				),
 		);

@@ -6,6 +6,12 @@
       config:
         enabled: true
         scopedPresets: ["vanta"]
+        # strictScope: true  = system 段与尾部段也受 scopedPresets + autoMode 约束。
+        #   作用域门的判定在 system-prompt/assemble 里做（那是唯一能拿到 context.agent
+        #   的地方），未命中时按段名把 vanta / vanta-post 整个摘掉。
+        # strictScope: false = 退回旧行为，段无条件注入到所有 agent 模式。
+        #   只在你确实想让别的模式也吃这套人格时才开。
+        strictScope: true
         verbose: false
 
     # ── Agent preset declaration ──────────────────────────────────────────────
