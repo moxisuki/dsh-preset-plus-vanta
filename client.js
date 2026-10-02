@@ -259,14 +259,69 @@ window.__ModuleLoader__.load({ id: "@moxisuki/dsh-preset-plus-vanta", factory: (
 
 		const exportSingle = useCallback(() => {
 			if (!current) return;
-			const raw = JSON.stringify({ id: current.id, name: current.name, autoMode: current.autoMode, entries: current.entries }, null, 2);
+			// postPrompt 必须带上：漏了它，导出→导入往返一次就把尾部锚定段丢了。
+			const raw = JSON.stringify({ id: current.id, name: current.name, autoMode: current.autoMode, postPrompt: current.postPrompt || "", entries: current.entries }, null, 2);
 			downloadJson(raw, "vanta-" + (current.name || current.id) + ".json", setNotice);
 		}, [current]);
 
 		const exportAll = useCallback(() => {
-			const raw = JSON.stringify({ version: (doc && doc.version) || 1, activePresetId: doc && doc.activePresetId, presets: doc && doc.presets }, null, 2);
+			// modelRoutes 同理：漏了就等于把路由表清空。
+			const raw = JSON.stringify({ version: (doc && doc.version) || 2, activePresetId: doc && doc.activePresetId, modelRoutes: (doc && doc.modelRoutes) || [], presets: doc && doc.presets }, null, 2);
 			downloadJson(raw, "vanta-all.json", setNotice);
 		}, [doc]);
+
+		// ── 模型路由 ──────────────────────────────────────────────────────────
+		const patchRoute = useCallback((idx, patch) => {
+			setDoc((d) => {
+				const routes = (d.modelRoutes || []).map((r, i) => (i === idx ? { ...r, ...patch } : r));
+				return { ...d, modelRoutes: routes };
+			});
+		}, []);
+
+		const addRoute = useCallback(() => {
+			setDoc((d) => ({ ...d, modelRoutes: [...(d.modelRoutes || []), { pattern: "", presetId: d.activePresetId }] }));
+		}, []);
+
+		const removeRoute = useCallback((idx) => {
+			setDoc((d) => ({ ...d, modelRoutes: (d.modelRoutes || []).filter((_, i) => i !== idx) }));
+		}, []);
+
+		// ── 备份 / 还原 ───────────────────────────────────────────────────────
+		const [snapshots, setSnapshots] = useState([]);
+
+		const refreshSnapshots = useCallback(() => {
+			fetch("/dsh-preset-plus-vanta/snapshots", { cache: "no-store" })
+				.then((r) => (r.ok ? r.json() : null))
+				.then((d) => { if (d && d.ok) setSnapshots(d.snapshots || []); })
+				.catch(() => { /* 旧宿主没有该路由：静默，留空列表 */ });
+		}, []);
+
+		useEffect(() => { refreshSnapshots(); }, []);
+
+		const makeBackup = useCallback(() => {
+			setBusy(true);
+			fetch("/dsh-preset-plus-vanta/backup", { method: "POST" })
+				.then((r) => (r.ok ? r.json() : null))
+				.then((d) => {
+					if (d && d.ok) { setSnapshots(d.snapshots || []); setNotice({ kind: "ok", text: "已打快照: " + d.snapshot.id }); }
+					else { setNotice({ kind: "error", text: "备份失败: 宿主未提供该接口（可能需要重启 DSH）" }); }
+				})
+				.catch((e) => setNotice({ kind: "error", text: "备份失败: " + e.message }))
+				.finally(() => setBusy(false));
+		}, []);
+
+		const restoreFrom = useCallback((id) => {
+			setBusy(true);
+			fetch("/dsh-preset-plus-vanta/restore", {
+				method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }),
+			}).then((r) => (r.ok ? r.json() : null)).then((d) => {
+				if (d && d.ok) {
+					setDoc(d.doc);
+					setSelectedId(d.doc.activePresetId);
+					setNotice({ kind: "ok", text: "已从快照还原: " + id });
+				} else { setNotice({ kind: "error", text: "还原失败: 宿主未提供该接口（可能需要重启 DSH）" }); }
+			}).catch((e) => setNotice({ kind: "error", text: "还原失败: " + e.message })).finally(() => setBusy(false));
+		}, []);
 
 		const fileInputRef = useRef(null);
 

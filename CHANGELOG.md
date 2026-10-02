@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 修复
+- **设置页整页空白**：客户端引用了 `snapshots` / `patchRoute` / `addRoute` / `removeRoute` / `makeBackup` / `refreshSnapshots` / `restoreFrom`，但这批回调与状态从未声明，render 时抛 `ReferenceError`，整个「预设增强」面板渲染为空白。原因是这三张卡片与它们的支撑逻辑分两次改动落地，第二次只带了卡片本身。现已补齐声明。
 - system 段改用 `systemPrompt.section()` 注册（text 为函数，每次组装时从预设动态读取），与 billion 机制一致。system 在组装阶段（`system-prompt/assemble`）即加入，轨迹可见。`llm/stream` handler 不再碰 `options.system`，仅负责前置 fake 消息。
 - **system 段此前完全绕过作用域门**：`systemPrompt.section()` 的 text 回调不查 `scopedPresets` / `autoMode`，作用域判定只作用于 `llm/stream` 的 fake 消息层。实际影响是主提示词被无条件注入到宿主里每一个 agent 模式——当预设只启用 system 段时（user/assistant 关闭），`scopedPresets` 对唯一生效的那一层形同虚设。作用域判定已移入 `system-prompt/assemble`（唯一能拿到 `context.agent` 的位置），未命中时按段名摘除本插件的段。新增 `strictScope` 配置（默认 `true`），置 `false` 可退回旧的全局注入行为。
 - `enabledForAgent` 未对 `agentPresets` 做空值保护，且该服务不在 `inject` 声明中，加载顺序不保证时就绪——`/vanta prefill` 会抛 TypeError。已改为 fail-closed（未就绪判为不命中）并补入 `inject` 声明。
@@ -19,7 +20,8 @@
 - **尾部锚定段**：预设新增可选 `postPrompt` 字段，注册为 `order: 5100` 的独立 section（主提示词为 `order: 100`）。模型对 system 末尾的指令服从度显著高于开头。留空则不注册该段。
 - 诊断与快照：`/vanta status` 新增 DSH_HOME、存储/备份文件存在性、降级状态、`strictScope`、模型路由与命中情况；新增 `/vanta backup` / `restore` 命令、`/dsh-preset-plus-vanta/backup` / `snapshots` / `restore` 路由，以及带时间戳的快照目录。
 - 设置页新增三张卡片：尾部锚定段编辑区、按模型路由编辑区、快照备份/还原；存储降级状态会在页面上直接告警。
-- 新增 `test/inject.test.mjs` 回归测试（32 项），覆盖作用域门命中/未命中、`agentPresets` 未就绪/取不到 Agent/抛异常三种 fail-closed 路径、`strictScope` 退路、`autoMode` 双向、路由命中/回落/顺序优先、verbose 双向。`pnpm test` 运行。
+- 新增 `test/inject.test.mjs` 回归测试（32 项），覆盖作用域门命中/未命中、`agentPresets` 未就绪/取不到 Agent/抛异常三种 fail-closed 路径、`strictScope` 退路、`autoMode` 双向、路由命中/回落/顺序优先、verbose 双向。
+- 新增 `test/client-render.test.mjs` 渲染冒烟测试（12 项）：用 mock react 真正执行一次设置页 render，`node --check` 查不出的 `ReferenceError` 在这里会当场暴露。覆盖正常数据、`doc=null`、v1 文档（无 `modelRoutes`）、预设缺 `postPrompt` 四种输入，并断言子树不含 `render-error` 标记。`pnpm test` 依次运行两个测试。
 
 ### 说明
 - `modelRoutes` 只作用于 user / assistant 条目。system 段与尾部锚定段在组装阶段拿不到 model 信息，始终取当前激活预设；`/vanta status` 会明示这一点。
