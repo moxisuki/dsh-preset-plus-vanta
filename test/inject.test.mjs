@@ -229,6 +229,55 @@ console.log("\n【8】system 段与路由无关（设计约束，status 已注�
     sect(sections, "vanta").text() === "SYSTEM-VANTA");
 }
 
+// 注入位置：fake 消息必须落在**末尾**。
+// 放在开头会凭空造出一段开场（假 user 指令 + 假 assistant「好，以下是结果：」），
+// 模型会把它读成"操作者的开场要求 + 我自己说过的话"，而两者都不成立 —— 这段前缀
+// 正是越狱注入的形状，实测模型据此判定整份人格是 injected。此前测试只查"包含"，
+// 查不出位置，所以这个 bug 一路绿灯。
+console.log("\n【9】注入位置（末尾，不是开头）");
+{
+  const h = makeCtx({ cfg: {}, sessions: { s1: { id: "s1", mode: "vanta" } }, composed: { x: 1 } });
+  let captured = null;
+  h.ctx.llm.stream = (o) => { captured = o; return Promise.resolve(); };
+
+  const history = [
+    { id: "h1", role: "user", content: [{ type: "text", text: "REAL-TURN-1" }] },
+    { id: "h2", role: "assistant", content: [{ type: "text", text: "REAL-TURN-2" }] },
+    { id: "h3", role: "user", content: [{ type: "text", text: "REAL-TURN-3" }] },
+  ];
+  for (const fn of h.handlers["llm/stream"] || []) {
+    await fn({ sessionId: "s1", model: "deepseek-chat", messages: history }, () => Promise.resolve());
+  }
+
+  const msgs = captured?.messages || [];
+  const texts = msgs.map((m) => m.content?.[0]?.text);
+  ok("消息数组非空", msgs.length > 0, JSON.stringify(texts));
+
+  const iReal = texts.indexOf("REAL-TURN-1");
+  const iFake = texts.findIndex((t) => t === "USER-VANTA" || t === "ASST-VANTA");
+  ok("真实历史仍在数组中", iReal >= 0, JSON.stringify(texts));
+  ok("注入的 fake 消息在真实历史之后", iFake > iReal, `iReal=${iReal} iFake=${iFake}`);
+  ok("真实历史保持原有相对顺序",
+    texts.indexOf("REAL-TURN-1") < texts.indexOf("REAL-TURN-2")
+    && texts.indexOf("REAL-TURN-2") < texts.indexOf("REAL-TURN-3"));
+
+  const last = msgs[msgs.length - 1];
+  ok("末条是 assistant 预填充种子（预填充语义）",
+    last?.role === "assistant" && last?.content?.[0]?.text === "ASST-VANTA",
+    JSON.stringify({ role: last?.role, text: last?.content?.[0]?.text }));
+
+  ok("数组不以注入的假 user 开场",
+    msgs[0]?.content?.[0]?.text !== "USER-VANTA", JSON.stringify(texts));
+
+  // 重复注入不应累积：第二次调用时旧注入的反向清洗仍生效。
+  for (const fn of h.handlers["llm/stream"] || []) {
+    await fn({ sessionId: "s1", model: "deepseek-chat", messages: captured.messages }, () => Promise.resolve());
+  }
+  const twice = captured?.messages || [];
+  const fakeCount = twice.filter((m) => ["USER-VANTA", "ASST-VANTA"].includes(m.content?.[0]?.text)).length;
+  ok("二次注入不累积（只保留一组）", fakeCount === 2, `fakeCount=${fakeCount}`);
+}
+
 console.log(`\n════ ${PASS} 通过 / ${FAIL} 失败 ════`);
 fs.rmSync(HOME, { recursive: true, force: true });
 process.exit(FAIL ? 1 : 0);

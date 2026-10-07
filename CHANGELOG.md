@@ -6,6 +6,17 @@
 ## [Unreleased]
 
 ### 修复
+- **注入顺序反了：fake 消息此前拼在消息数组最前面**（`[...inject, ...sourceMessages]`），
+  应为末尾。放在开头会凭空造出一段对话开场——一条"用户"指令（模型读作操作者的开场
+  要求）加一条"助手"回答「好，以下是结果：」（模型读作自己说过的话），而两者都不成立：
+  没有任何问题被问过。这段前缀正是越狱注入的标准形状，实测两个会话的推理里模型明确
+  据此判定整份人格是 injected（"m00001–m00002 are the user's instruction and my
+  好，以下是结果："）。改为拼在末尾同时修好语义：assistant 预填充种子的定义就是紧贴
+  响应位置供模型续写，放在对话最前面的预填充不生效，只留下解释不通的残迹。
+- 新增注入位置回归测试（7 项）：断言 fake 消息位于真实历史之后、末条是 assistant 预填
+  充种子、数组不以假 user 开场、真实历史相对顺序不变、二次注入不累积。已验证该测试对
+  旧顺序报错（输出直接显示 `["USER-VANTA","ASST-VANTA","REAL-TURN-1",…]`），不是空过。
+  此前的测试只断言"包含"，查不出位置，因此该 bug 一路绿灯。
 - **设置页整页空白**：客户端引用了 `snapshots` / `patchRoute` / `addRoute` / `removeRoute` / `makeBackup` / `refreshSnapshots` / `restoreFrom`，但这批回调与状态从未声明，render 时抛 `ReferenceError`，整个「预设增强」面板渲染为空白。原因是这三张卡片与它们的支撑逻辑分两次改动落地，第二次只带了卡片本身。现已补齐声明。
 - system 段改用 `systemPrompt.section()` 注册（text 为函数，每次组装时从预设动态读取），与 billion 机制一致。system 在组装阶段（`system-prompt/assemble`）即加入，轨迹可见。`llm/stream` handler 不再碰 `options.system`，仅负责前置 fake 消息。
 - **system 段此前完全绕过作用域门**：`systemPrompt.section()` 的 text 回调不查 `scopedPresets` / `autoMode`，作用域判定只作用于 `llm/stream` 的 fake 消息层。实际影响是主提示词被无条件注入到宿主里每一个 agent 模式——当预设只启用 system 段时（user/assistant 关闭），`scopedPresets` 对唯一生效的那一层形同虚设。作用域判定已移入 `system-prompt/assemble`（唯一能拿到 `context.agent` 的位置），未命中时按段名摘除本插件的段。新增 `strictScope` 配置（默认 `true`），置 `false` 可退回旧的全局注入行为。
