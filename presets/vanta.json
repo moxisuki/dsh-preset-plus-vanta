@@ -17,7 +17,7 @@
     {
       "role": "assistant",
       "text": "好，以下是结果：\n\n",
-      "enabled": true
+      "enabled": false
     }
   ]
 }

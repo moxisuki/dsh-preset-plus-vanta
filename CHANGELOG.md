@@ -6,16 +6,27 @@
 ## [Unreleased]
 
 ### 修复
+- **DSH 重启后即 400：`The content[].thinking in the thinking mode must be passed back to the API`**。
+  上一版把注入的 fake 消息从消息数组开头挪到末尾（修「假开场」问题），但没意识到
+  **末尾正是思考模式 provider 强校验的那一轮**：合成的 assistant 预填充种子 content 里
+  只有 text、没有 thinking，作为「待续写的最后一条 assistant 轮」被直接拒绝。
+  实测证据：DSH 于 04:40:11 重启载入该版本，04:41:57 出现首次该错误（此前连续 12 小时
+  零该错），04:45 新会话第一轮即 400。
+  现已把 assistant 预填充种子的注入默认关闭（新增配置 `injectAssistantSeed`，默认
+  false），并把内置 vanta 预设的 assistant 条目置为 `enabled: false`（否则 UI 显示
+  「启用」而实际不跑，界面在说谎）。该条目的两个可用位置都不可用：末尾被 provider 拒，
+  开头则预填充不生效且会被读成越狱注入 —— 故默认关闭，确需时两处同时开启并确认目标
+  模型非思考模式。
 - **注入顺序反了：fake 消息此前拼在消息数组最前面**（`[...inject, ...sourceMessages]`），
   应为末尾。放在开头会凭空造出一段对话开场——一条"用户"指令（模型读作操作者的开场
   要求）加一条"助手"回答「好，以下是结果：」（模型读作自己说过的话），而两者都不成立：
   没有任何问题被问过。这段前缀正是越狱注入的标准形状，实测两个会话的推理里模型明确
   据此判定整份人格是 injected（"m00001–m00002 are the user's instruction and my
-  好，以下是结果："）。改为拼在末尾同时修好语义：assistant 预填充种子的定义就是紧贴
-  响应位置供模型续写，放在对话最前面的预填充不生效，只留下解释不通的残迹。
-- 新增注入位置回归测试（7 项）：断言 fake 消息位于真实历史之后、末条是 assistant 预填
-  充种子、数组不以假 user 开场、真实历史相对顺序不变、二次注入不累积。已验证该测试对
-  旧顺序报错（输出直接显示 `["USER-VANTA","ASST-VANTA","REAL-TURN-1",…]`），不是空过。
+  好，以下是结果："）。
+- 新增注入位置回归测试：断言 fake 消息位于真实历史之后、**默认不注入 assistant 种子**、
+  默认数组不以 assistant 轮结尾（思考模式校验位）、数组不以假 user 开场、二次注入不
+  累积；另有 `injectAssistantSeed: true` 下种子恢复注入并落在最末的对照。已验证对旧
+  顺序报错（输出直接显示 `["USER-VANTA","ASST-VANTA","REAL-TURN-1",…]`），不是空过。
   此前的测试只断言"包含"，查不出位置，因此该 bug 一路绿灯。
 - **设置页整页空白**：客户端引用了 `snapshots` / `patchRoute` / `addRoute` / `removeRoute` / `makeBackup` / `refreshSnapshots` / `restoreFrom`，但这批回调与状态从未声明，render 时抛 `ReferenceError`，整个「预设增强」面板渲染为空白。原因是这三张卡片与它们的支撑逻辑分两次改动落地，第二次只带了卡片本身。现已补齐声明。
 - system 段改用 `systemPrompt.section()` 注册（text 为函数，每次组装时从预设动态读取），与 billion 机制一致。system 在组装阶段（`system-prompt/assemble`）即加入，轨迹可见。`llm/stream` handler 不再碰 `options.system`，仅负责前置 fake 消息。

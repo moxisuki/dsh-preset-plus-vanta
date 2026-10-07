@@ -12,6 +12,14 @@
         # strictScope: false = 退回旧行为，段无条件注入到所有 agent 模式。
         #   只在你确实想让别的模式也吃这套人格时才开。
         strictScope: true
+        # injectAssistantSeed: assistant 预填充种子是否注入消息数组。默认 false。
+        #   该条目是合成的 assistant 轮，content 只有 text、没有 thinking：
+        #   落在数组末尾会被思考模式 provider 以 400 INVALID_REQUEST 拒绝
+        #   （"The `content[].thinking` in the thinking mode must be passed back"）；
+        #   放在数组开头则预填充不生效，还会制造出「用户指令 + 助手已作答」的假开场，
+        #   被模型读成越狱注入。两个位置都不可用，故默认关闭。
+        #   开启前请确认目标模型不是思考模式，并把预设里的 assistant 条目也打开。
+        injectAssistantSeed: false
         verbose: false
 
     # ── Agent preset declaration ──────────────────────────────────────────────

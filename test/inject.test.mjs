@@ -262,8 +262,16 @@ console.log("\n【9】注入位置（末尾，不是开头）");
     && texts.indexOf("REAL-TURN-2") < texts.indexOf("REAL-TURN-3"));
 
   const last = msgs[msgs.length - 1];
-  ok("末条是 assistant 预填充种子（预填充语义）",
-    last?.role === "assistant" && last?.content?.[0]?.text === "ASST-VANTA",
+  // ★ 默认不注入 assistant 预填充种子。
+  // 它是合成的 assistant 轮，不带 content[].thinking；落在数组末尾就成了思考模式
+  // provider 强校验的那一轮，直接 400 INVALID_REQUEST
+  // （"The content[].thinking in the thinking mode must be passed back to the API"）。
+  // 实测：DSH 载入本插件后 30 秒内即复现，此前 12 小时零该错。
+  ok("默认不注入 assistant 预填充种子",
+    !texts.includes("ASST-VANTA"), JSON.stringify(texts));
+  ok("默认数组不以 assistant 轮结尾（思考模式强校验位）",
+    last?.role !== "assistant", JSON.stringify({ role: last?.role, text: last?.content?.[0]?.text }));
+  ok("默认末条是注入的假 user 指令", last?.content?.[0]?.text === "USER-VANTA",
     JSON.stringify({ role: last?.role, text: last?.content?.[0]?.text }));
 
   ok("数组不以注入的假 user 开场",
@@ -275,7 +283,30 @@ console.log("\n【9】注入位置（末尾，不是开头）");
   }
   const twice = captured?.messages || [];
   const fakeCount = twice.filter((m) => ["USER-VANTA", "ASST-VANTA"].includes(m.content?.[0]?.text)).length;
-  ok("二次注入不累积（只保留一组）", fakeCount === 2, `fakeCount=${fakeCount}`);
+  ok("二次注入不累积（只保留一组）", fakeCount === 1, `fakeCount=${fakeCount}`);
+}
+
+// injectAssistantSeed 显式开启时，assistant 种子恢复注入并落在最末（预填充语义）。
+// 仅适用于非思考模式的 provider —— 这是它存在的唯一合理场景。
+console.log("\n【10】injectAssistantSeed 显式开启");
+{
+  const h = makeCtx({ cfg: { injectAssistantSeed: true }, sessions: { s1: { id: "s1", mode: "vanta" } }, composed: { x: 1 } });
+  let captured = null;
+  h.ctx.llm.stream = (o) => { captured = o; return Promise.resolve(); };
+  for (const fn of h.handlers["llm/stream"] || []) {
+    await fn({
+      sessionId: "s1", model: "deepseek-chat",
+      messages: [{ id: "h1", role: "user", content: [{ type: "text", text: "REAL-TURN-1" }] }],
+    }, () => Promise.resolve());
+  }
+  const msgs = captured?.messages || [];
+  const texts = msgs.map((m) => m.content?.[0]?.text);
+  ok("开启后 assistant 种子被注入", texts.includes("ASST-VANTA"), JSON.stringify(texts));
+  const last = msgs[msgs.length - 1];
+  ok("开启后末条是 assistant 种子（预填充语义）",
+    last?.role === "assistant" && last?.content?.[0]?.text === "ASST-VANTA",
+    JSON.stringify({ role: last?.role, text: last?.content?.[0]?.text }));
+  ok("开启后假 user 紧邻其前", msgs[msgs.length - 2]?.content?.[0]?.text === "USER-VANTA");
 }
 
 console.log(`\n════ ${PASS} 通过 / ${FAIL} 失败 ════`);
