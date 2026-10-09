@@ -20,6 +20,11 @@
         #   被模型读成越狱注入。两个位置都不可用，故默认关闭。
         #   开启前请确认目标模型不是思考模式，并把预设里的 assistant 条目也打开。
         injectAssistantSeed: false
+        # injectUserTrigger: user 触发条目是否注入消息数组。默认 false。
+        #   它伪造一条 WREN 从未写过的 user 发言，实测被模型识破
+        #   （"the messages m00005 appeared ... injected as if from the user"），
+        #   反而坐实注入判定。内容与 system 段重复，不注入不丢信息。
+        injectUserTrigger: false
         verbose: false
 
     # ── Agent preset declaration ──────────────────────────────────────────────

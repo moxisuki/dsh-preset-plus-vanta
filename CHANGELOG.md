@@ -6,6 +6,16 @@
 ## [Unreleased]
 
 ### 修复
+- **插件默认不再伪造对话轮**（新增 `injectUserTrigger`，默认 false；此前的
+  `injectAssistantSeed` 同样默认 false）。
+  实测模型能识破伪造的 user 发言并据此坐实注入判定：
+  `"The messages m00005 that appeared are the same text repeated — apparently
+  injected as if from the user."`
+  伪造一条用户从未写过的发言，本身就是错的；且该条目内容与 system 段重复，不注入
+  不丢信息。默认配置下 `llm/stream` 不再改动消息数组，人格只经 system 段与尾部段
+  投递（那是它们的正确通道）。
+  副作用：`modelRoutes` 决定用哪套预设的 user/assistant 条目，两个伪造轮开关都关时
+  路由不产生可见影响，已在配置注释中说明。
 - **DSH 重启后即 400：`The content[].thinking in the thinking mode must be passed back to the API`**。
   上一版把注入的 fake 消息从消息数组开头挪到末尾（修「假开场」问题），但没意识到
   **末尾正是思考模式 provider 强校验的那一轮**：合成的 assistant 预填充种子 content 里
